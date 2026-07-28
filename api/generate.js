@@ -89,7 +89,6 @@ JSON 구조 요구사항:
             }
         };
 
-        // Update model to gemini-2.0-flash-lite (Flash Lite API)
         const primaryModel = 'gemini-2.0-flash-lite';
         let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:generateContent?key=${apiKey}`;
 
@@ -119,12 +118,18 @@ JSON 구조 요구사항:
         const data = await response.json();
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-        if (!responseText) {
+        const cleanedText = responseText ? responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim() : '';
+
+        if (!cleanedText) {
             throw new Error('AI 응답 데이터를 처리할 수 없습니다.');
         }
 
-        const parsedResult = JSON.parse(responseText);
-        return res.status(200).json(parsedResult);
+        try {
+            const parsedResult = JSON.parse(cleanedText);
+            return res.status(200).json(parsedResult);
+        } catch (pErr) {
+            throw new Error('AI 응답 JSON 파싱 실패');
+        }
 
     } catch (error) {
         console.error('API Serverless Error:', error);

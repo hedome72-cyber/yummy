@@ -842,8 +842,12 @@ JSON 구조 요구사항:
 
                 if (res.ok) {
                     const resData = await res.json();
-                    const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-                    return JSON.parse(text);
+                    const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    const parsed = safeJsonParse(text);
+                    if (!parsed) {
+                        throw new Error('AI 응답을 JSON 형식으로 해석할 수 없습니다.');
+                    }
+                    return parsed;
                 }
 
                 // If Rate Limited (429), wait and retry automatically with backoff delay
@@ -860,11 +864,23 @@ JSON 구조 요구사항:
             }
         }
 
+        function safeJsonParse(str, fallback = null) {
+            if (!str || typeof str !== 'string' || !str.trim()) return fallback;
+            try {
+                // Remove potential markdown code blocks like ```json ... ```
+                const cleaned = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+                return JSON.parse(cleaned);
+            } catch (e) {
+                console.warn('JSON parsing failed:', e, str);
+                return fallback;
+            }
+        }
+
         async function generateSmartSimulatedData(mealType, notes, imageBase64) {
             const text = (notes || '').toLowerCase();
 
             // 1. Check notes first if provided
-            if (text.includes('곤약')) {
+            if (text.includes('곤약') || text.includes('묵') || text.includes('떡') || text.includes('두부') || text.includes('국수')) {
                 return getKonjacMeal(mealType);
             }
             if (text.includes('치킨') || text.includes('튀김') || text.includes('콜라') || text.includes('패스트푸드')) {
@@ -877,7 +893,9 @@ JSON 구조 요구사항:
             // 2. Inspect uploaded image pixels using Offscreen Canvas
             if (imageBase64) {
                 const theme = await analyzeImageDominantTheme(imageBase64);
-                if (theme === 'fried_chicken') {
+                if (theme === 'white_konjac') {
+                    return getKonjacMeal(mealType);
+                } else if (theme === 'fried_chicken') {
                     return getChickenMeal(mealType);
                 } else if (theme === 'salad') {
                     return getSaladMeal(mealType);
@@ -909,14 +927,19 @@ JSON 구조 요구사항:
                         let yellowGoldenPixels = 0; // Fried chicken, fries, crispy food
                         let greenPixels = 0;        // Salad, veggies
                         let redPixels = 0;          // Spicy sauce, stew
+                        let whiteLightPixels = 0;    // Konjac, white rice cake, tofu, white jelly, translucent noodles
 
                         for (let i = 0; i < imgData.length; i += 4) {
                             const r = imgData[i];
                             const g = imgData[i+1];
                             const b = imgData[i+2];
 
+                            // White / Translucent food detection (High RGB with balanced saturation)
+                            if (r > 175 && g > 175 && b > 175 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25) {
+                                whiteLightPixels++;
+                            }
                             // Golden/Fried/Brown food detection (High R & G, low B)
-                            if (r > 140 && g > 90 && b < 110 && (r - b > 40)) {
+                            else if (r > 140 && g > 90 && b < 110 && (r - b > 40)) {
                                 yellowGoldenPixels++;
                             }
                             // Green detection
@@ -930,7 +953,9 @@ JSON 구조 요구사항:
                         }
 
                         const total = 64 * 64;
-                        if (yellowGoldenPixels / total > 0.12) {
+                        if (whiteLightPixels / total > 0.12) {
+                            resolve('white_konjac');
+                        } else if (yellowGoldenPixels / total > 0.12) {
                             resolve('fried_chicken');
                         } else if (greenPixels / total > 0.10) {
                             resolve('salad');
@@ -948,32 +973,28 @@ JSON 구조 요구사항:
             });
         }
 
-        function getChickenMeal(mealType) {
+        function getKonjacMeal(mealType) {
             return {
-                mealName: `${mealType} - 바삭한 치킨 & 튀김 세트`,
-                totalCalories: 890,
-                score: 74,
-                summary: "단백질 함량이 높지만 지방 및 나트륨 비율이 높아 칼로리 조절이 필요한 식단입니다.",
-                carbsGrams: 78, proteinGrams: 42, fatGrams: 38,
-                sodiumRating: "주의", sugarRating: "보통",
+                mealName: `${mealType} - 곤약 타래 / 다이어트 식단`,
+                totalCalories: 45,
+                score: 95,
+                summary: "곤약 및 청포묵 형태의 초저칼로리 식이섬유 식단입니다.",
+                carbsGrams: 8, proteinGrams: 1, fatGrams: 0.5,
+                sodiumRating: "양호", sugarRating: "양호",
                 nutrients: {
-                    carbs: { amount: 78, percent: 35 },
-                    protein: { amount: 42, percent: 25 },
-                    fat: { amount: 38, percent: 40 },
-                    sodium: { amount: 1120, status: 'warning' },
-                    sugar: { amount: 16, status: 'good' }
+                    carbs: { amount: 8, percent: 80 },
+                    protein: { amount: 1, percent: 10 },
+                    fat: { amount: 0.5, percent: 10 },
+                    sodium: { amount: 120, status: 'good' },
+                    sugar: { amount: 1, status: 'good' }
                 },
                 items: [
-                    { name: "후라이드 크리스피 치킨", portion: "3조각 (약 210g)", calories: 560, estimatedCalories: 560, protein: 34 },
-                    { name: "케이준 감자튀김", portion: "1접시 (약 100g)", calories: 210, estimatedCalories: 210, protein: 4 },
-                    { name: "코카콜라 / 칠성사이다", portion: "1캔 (약 250ml)", calories: 120, estimatedCalories: 120, protein: 0 }
+                    { name: "곤약 타래 / 곤약국수", portion: "1접시 (약 150g)", calories: 30, estimatedCalories: 30, protein: 0.5 },
+                    { name: "저칼로리 초간장 소스", portion: "1작은술", calories: 15, estimatedCalories: 15, protein: 0.5 }
                 ],
-                dietitianAdvice: "치킨과 튀김류는 풍부한 단백질을 제공하지만 튀김옷의 지방과 나트륨 섭취량이 높습니다. 콜라 대신 탄산수나 물을 마시면 약 120kcal를 줄일 수 있습니다.",
-                advice: [
-                    "다음 식사 시 나트륨 배출을 돕는 킬륨이 풍부한 바나나나 오이를 섭취하세요.",
-                    "탄산음료 대신 제로 음료나 시원한 물을 함께 드시는 것을 추천합니다."
-                ],
-                dietaryTags: ["고단백", "고지방", "나트륨주의", "치킨세트"]
+                dietitianAdvice: "곤약은 포만감이 매우 높고 칼로리가 거의 없어 체중 관리에 탁월합니다.",
+                advice: ["부족한 단백질 보충을 위해 삶은 계란이나 닭가슴살, 두부를 곁들여보세요."],
+                dietaryTags: ["초저칼로리", "식이섬유풍부", "다이어트", "곤약식단"]
             };
         }
 
@@ -1030,31 +1051,6 @@ JSON 구조 요구사항:
                     "국물을 자제하고 건더기 위주로 드시는 것이 좋습니다."
                 ],
                 dietaryTags: ["고탄수화물", "나트륨주의", "당류주의"]
-            };
-        }
-
-        function getKonjacMeal(mealType) {
-            return {
-                mealName: `${mealType} - 곤약 다이어트 식단`,
-                totalCalories: 45,
-                score: 95,
-                summary: "곤약을 활용한 초저칼로리 식이섬유 식단입니다.",
-                carbsGrams: 8, proteinGrams: 1, fatGrams: 0.5,
-                sodiumRating: "양호", sugarRating: "양호",
-                nutrients: {
-                    carbs: { amount: 8, percent: 80 },
-                    protein: { amount: 1, percent: 10 },
-                    fat: { amount: 0.5, percent: 10 },
-                    sodium: { amount: 120, status: 'good' },
-                    sugar: { amount: 1, status: 'good' }
-                },
-                items: [
-                    { name: "곤약 타래 무침", portion: "1접시 (약 150g)", calories: 30, estimatedCalories: 30, protein: 0.5 },
-                    { name: "저칼로리 양념 소스", portion: "1작은술", calories: 15, estimatedCalories: 15, protein: 0.5 }
-                ],
-                dietitianAdvice: "곤약은 포만감이 높고 칼로리가 거의 없어 체중 관리에 훌륭합니다.",
-                advice: ["부족한 단백질 섭취를 위해 삶은 계란이나 두부를 곁들여보세요."],
-                dietaryTags: ["초저칼로리", "식이섬유풍부", "다이어트"]
             };
         }
 
@@ -1243,7 +1239,7 @@ JSON 구조 요구사항:
                 return;
             }
 
-            const logs = JSON.parse(localStorage.getItem('meal_logs') || '[]');
+            const logs = safeJsonParse(localStorage.getItem('meal_logs'), []);
             const newLog = {
                 id: Date.now(),
                 date: new Date().toLocaleDateString('ko-KR'),
@@ -1272,74 +1268,10 @@ JSON 구조 요구사항:
 
         function renderHistoryList() {
             const historyListEl = document.getElementById('historyList');
-            const logs = JSON.parse(localStorage.getItem('meal_logs') || '[]');
+            const logs = safeJsonParse(localStorage.getItem('meal_logs'), []);
 
             if (logs.length === 0) {
                 historyListEl.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">저장된 식단 기록이 없습니다.</div>`;
                 return;
             }
-
-            let html = '';
-            logs.forEach(log => {
-                html += `
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
-                        <div>
-                            <span class="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">${escapeHtmlUI(log.mealType)}</span>
-                            <h4 class="font-bold text-slate-800 text-xs mt-1">${escapeHtmlUI(log.title)}</h4>
-                            <p class="text-[10px] text-slate-400">${log.date}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="font-black text-slate-700 text-sm">${log.calories}</span>
-                            <span class="text-[10px] text-slate-400">kcal</span>
-                        </div>
-                    </div>
-                `;
-            });
-            historyListEl.innerHTML = html;
-        }
-
-        window.clearHistory = function() {
-            localStorage.removeItem('meal_logs');
-            renderHistoryList();
-            window.showToast('모든 식단 기록이 삭제되었습니다.');
-        };
-
-        window.submitBoardPost = async function() {
-            const nicknameInput = document.getElementById('boardNickname');
-            const contentInput = document.getElementById('boardContent');
-            const submitBtn = document.getElementById('boardSubmitBtn');
-
-            const nickname = nicknameInput.value.trim() || '익명';
-            const content = contentInput.value.trim();
-
-            if (!content) {
-                window.showToast('의견 내용을 입력해주세요.');
-                return;
-            }
-
-            submitBtn.disabled = true;
-            submitBtn.innerText = '등록 중...';
-
-            try {
-                if (window.db && window.addDoc && window.collection) {
-                    await window.addDoc(window.collection(window.db, "board_posts"), {
-                        nickname: nickname,
-                        content: content,
-                        createdAt: window.serverTimestamp ? window.serverTimestamp() : new Date()
-                    });
-                    contentInput.value = '';
-                    window.showToast('의견이 등록되었습니다!');
-                } else {
-                    window.showToast('Firestore 데이터베이스에 접근할 수 없습니다.');
-                }
-            } catch (err) {
-                console.error("Board submit error:", err);
-                window.showToast('의견 등록 중 오류가 발생했습니다.');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane text-xs"></i> <span>의견 등록</span>`;
-            }
-        };
-    </script>
-</body>
-</html>
+<!-- ... existing code -->
