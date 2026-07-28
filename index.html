@@ -167,7 +167,7 @@
         </section>
 
         <!-- Right / Bottom Column: Analysis Display -->
-        <section class="md:col-span-7">
+        <section class="md:col-span-7 space-y-4">
             
             <!-- State 1: Initial Empty Placeholder -->
             <div id="emptyState" class="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm text-center h-full flex flex-col items-center justify-center min-h-[350px]">
@@ -319,6 +319,46 @@
 
             </div>
         </section>
+
+        <!-- Full-Width Bottom Section: User Community Feedback Board -->
+        <section class="md:col-span-12 mt-2">
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold">
+                            <i class="fa-solid fa-comments"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base leading-tight">사용자 의견 및 피드백 게시판</h2>
+                            <p class="text-xs text-slate-400">자유롭게 사용 소감이나 급식 분석 의견을 나눠주세요</p>
+                        </div>
+                    </div>
+                    <span id="boardCount" class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">0개</span>
+                </div>
+
+                <!-- Post Submission Form -->
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-2.5">
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="boardNickname" placeholder="닉네임 (선택, 기본: 익명)" class="sm:w-1/3 text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 bg-white">
+                        <input type="text" id="boardContent" placeholder="의견을 남겨주세요 (예: 오늘 급식 칼로리가 정확하게 잘 맞네요!)" class="sm:w-2/3 text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 bg-white" onkeypress="if(event.key === 'Enter') window.submitBoardPost()">
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="boardSubmitBtn" onclick="window.submitBoardPost()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-paper-plane text-xs"></i>
+                            <span>의견 등록</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Board Post List Area -->
+                <div id="boardList" class="space-y-2.5 max-h-[350px] overflow-y-auto custom-scrollbar pt-1">
+                    <div class="text-center py-6 text-slate-400 text-xs">
+                        <i class="fa-solid fa-spinner animate-spin mr-1"></i> 의견 목록을 불러오는 중...
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- History Modal -->
@@ -444,7 +484,7 @@
             selectedMealType = type;
         }
 
-        // Load Preset Sample Mock Images (SVG Data URLs)
+        // Load Preset Sample Mock Images
         function loadSampleImage(sampleKey) {
             const canvas = document.createElement('canvas');
             canvas.width = 400;
@@ -452,34 +492,27 @@
             const ctx = canvas.getContext('2d');
 
             if (sampleKey === 'school') {
-                // Draw mock school tray background
                 ctx.fillStyle = '#e2e8f0';
                 ctx.fillRect(0, 0, 400, 300);
-                
-                // Tray compartments
                 ctx.fillStyle = '#cbd5e1';
-                ctx.roundRect(20, 20, 170, 120, 10); ctx.fill(); // Rice
-                ctx.roundRect(210, 20, 170, 120, 10); ctx.fill(); // Main Dish
-                ctx.roundRect(20, 160, 110, 110, 10); ctx.fill(); // Side 1
-                ctx.roundRect(145, 160, 110, 110, 10); ctx.fill(); // Side 2
-                ctx.roundRect(270, 160, 110, 110, 10); ctx.fill(); // Soup
+                ctx.roundRect(20, 20, 170, 120, 10); ctx.fill();
+                ctx.roundRect(210, 20, 170, 120, 10); ctx.fill();
+                ctx.roundRect(20, 160, 110, 110, 10); ctx.fill();
+                ctx.roundRect(145, 160, 110, 110, 10); ctx.fill();
+                ctx.roundRect(270, 160, 110, 110, 10); ctx.fill();
 
-                // Food visuals
-                ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.arc(105, 80, 45, 0, Math.PI*2); ctx.fill(); // Rice
-                ctx.fillStyle = '#ea580c'; ctx.beginPath(); ctx.arc(295, 80, 40, 0, Math.PI*2); ctx.fill(); // Chicken
-                ctx.fillStyle = '#eab308'; ctx.fillRect(40, 180, 70, 70); // Egg
-                ctx.fillStyle = '#16a34a'; ctx.fillRect(165, 180, 70, 70); // Vegetables
-                ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(325, 215, 35, 0, Math.PI*2); ctx.fill(); // Soup
-
+                ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.arc(105, 80, 45, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ea580c'; ctx.beginPath(); ctx.arc(295, 80, 40, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#eab308'; ctx.fillRect(40, 180, 70, 70);
+                ctx.fillStyle = '#16a34a'; ctx.fillRect(165, 180, 70, 70);
+                ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(325, 215, 35, 0, Math.PI*2); ctx.fill();
             } else {
-                // Salad Bowl
                 ctx.fillStyle = '#f1f5f9';
                 ctx.fillRect(0, 0, 400, 300);
-                
                 ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.arc(200, 150, 120, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(200, 150, 100, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#f87171'; ctx.beginPath(); ctx.arc(170, 120, 25, 0, Math.PI*2); ctx.fill(); // Tomatoes
-                ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(230, 170, 30, 0, Math.PI*2); ctx.fill(); // Chicken breast
+                ctx.fillStyle = '#f87171'; ctx.beginPath(); ctx.arc(170, 120, 25, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(230, 170, 30, 0, Math.PI*2); ctx.fill();
             }
 
             const dataUrl = canvas.toDataURL('image/jpeg');
@@ -493,7 +526,6 @@
             showToast(`${sampleKey === 'school' ? '학교급식' : '샐러드'} 샘플 사진이 불러와졌습니다.`);
         }
 
-        // Primary API Call Action
         async function analyzeMeal() {
             if (!currentImageBase64) {
                 showToast('먼저 분석할 급식/음식 사진을 등록해주세요.', 'warning');
@@ -502,7 +534,6 @@
 
             const notes = document.getElementById('notesInput').value.trim();
 
-            // UI State Transition: Loading
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('resultContent').classList.add('hidden');
             document.getElementById('loadingState').classList.remove('hidden');
@@ -520,7 +551,6 @@
 
                 let response = null;
 
-                // Safely attempt Vercel API invocation
                 try {
                     const targetUrl = new URL('/api/generate', window.location.origin).href;
                     response = await fetch(targetUrl, {
@@ -530,6 +560,7 @@
                             image: currentImageBase64,
                             mimeType: currentMimeType,
                             notes: notes,
+                            note: notes,
                             mealType: selectedMealType
                         })
                     });
@@ -539,8 +570,13 @@
 
                 progressBar.style.width = '95%';
 
-                // Fallback simulation if running in offline sandbox preview
                 if (!response || !response.ok) {
+                    if (response && !response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        throw new Error(errData.error || `서버 분석 에러 (${response.status})`);
+                    }
+
+                    // Fallback to dynamic local simulation if backend API is not reached (e.g. preview mode)
                     const simulatedData = generateSimulatedAnalysis(selectedMealType, notes);
                     currentAnalysisResult = simulatedData;
 
@@ -571,72 +607,126 @@
         }
 
         function generateSimulatedAnalysis(mealType, notes) {
-            const hasLowSalt = notes.includes('저염') || notes.includes('싱겁');
-            const hasHalfRice = notes.includes('반만') || notes.includes('밥 적게');
+            const text = ((notes || '') + ' ' + (mealType || '')).toLowerCase();
+            const hasLowSalt = text.includes('저염') || text.includes('싱겁');
+            const hasHalfRice = text.includes('반만') || text.includes('밥 적게');
             
+            // 곤약 식단 감지
+            if (text.includes('곤약')) {
+                return {
+                    mealName: '곤약 다이어트 식단 분석',
+                    totalCalories: 45,
+                    carbsGrams: 10,
+                    proteinGrams: 1,
+                    fatGrams: 0,
+                    sodiumRating: '양호',
+                    sugarRating: '양호',
+                    score: 95,
+                    summary: '곤약 중심의 극저칼로리 다이어트 식단입니다. 식이섬유가 풍부하고 열량 부담이 매우 적습니다.',
+                    items: [
+                        { name: '실곤약 / 곤약 타래', portion: '1접시 (약 200g)', calories: 30, protein: 0.5 },
+                        { name: '저칼로리 양념 / 드레싱', portion: '1작은술 (약 10g)', calories: 15, protein: 0.5 }
+                    ],
+                    dietitianAdvice: '곤약은 100g당 약 15kcal로 열량이 매우 낮아 포만감을 주면서 체중 감량에 효과적입니다. 단백질 보충을 위해 삶은 계란이나 닭가슴살을 곁들여 보세요.',
+                    dietaryTags: ['극저칼로리', '다이어트식', '곤약', '식이섬유']
+                };
+            }
+
+            // 샐러드 / 다이어트 식단 감지
+            if (text.includes('샐러드') || text.includes('닭가슴살')) {
+                return {
+                    mealName: '닭가슴살 신선 샐러드 식단',
+                    totalCalories: 320,
+                    carbsGrams: 20,
+                    proteinGrams: 35,
+                    fatGrams: 8,
+                    sodiumRating: '양호',
+                    sugarRating: '양호',
+                    score: 94,
+                    summary: '고단백 저탄수화물 구성으로 체중 관리 및 근육 합성에 최적인 식단입니다.',
+                    items: [
+                        { name: '훈제 닭가슴살', portion: '100g', calories: 160, protein: 28 },
+                        { name: '혼합 야채 & 방울토마토', portion: '150g', calories: 50, protein: 2 },
+                        { name: '오리엔탈 드레싱', portion: '20g', calories: 110, protein: 0.5 }
+                    ],
+                    dietitianAdvice: '단백질 비율이 높고 야채 식이섬유가 풍부합니다. 드레싱을 찍어 먹으면 칼로리를 더 줄일 수 있습니다.',
+                    dietaryTags: ['고단백', '저탄수화물', '샐러드', '클린식단']
+                };
+            }
+
             let totalCal = hasHalfRice ? 560 : 680;
             
             return {
                 mealName: `${mealType} - 균형 잡힌 AI 식단 분석`,
                 totalCalories: totalCal,
-                caloriesTarget: 700,
-                nutrients: {
-                    carbs: { amount: hasHalfRice ? 65 : 88, unit: 'g', percent: 52 },
-                    protein: { amount: 32, unit: 'g', percent: 26 },
-                    fat: { amount: 16, unit: 'g', percent: 22 },
-                    sodium: { amount: hasLowSalt ? 520 : 850, unit: 'mg', status: hasLowSalt ? 'good' : 'warning' },
-                    sugar: { amount: 10, unit: 'g', status: 'good' }
-                },
+                carbsGrams: hasHalfRice ? 65 : 88,
+                proteinGrams: 32,
+                fatGrams: 16,
+                sodiumRating: hasLowSalt ? '양호' : '주의',
+                sugarRating: '양호',
                 score: 88,
                 summary: `단백질과 주요 영양소 비율이 우수합니다.${notes ? ' (메모 반영: ' + notes + ')' : ''}`,
                 items: [
-                    { name: '잡곡밥 / 현미밥', portion: hasHalfRice ? '0.5공기 (약 100g)' : '1공기 (약 200g)', calories: hasHalfRice ? 150 : 300, protein: 5, category: '주식' },
-                    { name: '메인 닭갈비 / 불고기', portion: '1접시 (약 150g)', calories: 230, protein: 22, category: '주요리' },
-                    { name: '계란말이 & 샐러드', portion: '1접시', calories: 120, protein: 5, category: '반찬' },
-                    { name: '맑은 콩나물국', portion: '1대접', calories: 30, protein: 2, category: '국/탕' }
+                    { name: '잡곡밥 / 현미밥', portion: hasHalfRice ? '0.5공기 (약 100g)' : '1공기 (약 200g)', calories: hasHalfRice ? 150 : 300, protein: 5 },
+                    { name: '메인 닭갈비 / 불고기', portion: '1접시 (약 150g)', calories: 230, protein: 22 },
+                    { name: '계란말이 & 샐러드', portion: '1접시', calories: 120, protein: 5 },
+                    { name: '맑은 콩나물국', portion: '1대접', calories: 30, protein: 2 }
                 ],
-                advice: [
-                    '단백질 비율이 높아 성장에 필수적인 근육 형성 및 피로 회복에 유익합니다.',
-                    hasLowSalt ? '저염 요청이 유용하게 적용되었습니다.' : '국물 섭취량을 조금 줄이면 나트륨 관리에 효과적입니다.',
-                    '식후 제철 과일이나 우유를 곁들이면 완벽한 영양 밸런스가 완성됩니다.'
-                ],
+                dietitianAdvice: '단백질 비율이 높아 성장에 유익합니다. 국물 섭취량을 조절하시면 나트륨을 더욱 효과적으로 줄이실 수 있습니다.',
                 dietaryTags: ['고단백', '적정칼로리', hasLowSalt ? '저염식' : '나트륨주의']
             };
         }
 
-        // Render Result UI Data
         function renderResult(data) {
-            document.getElementById('resMealTag').innerText = selectedMealType;
-            document.getElementById('resMealName').innerText = data.mealName || '식단 분석 결과';
-            document.getElementById('resTotalCalories').innerText = data.totalCalories || 0;
-            document.getElementById('resScore').innerText = (data.score || 85) + '점';
+            if (!data) return;
 
-            // Macronutrient Texts
-            const carbs = data.nutrients?.carbs || { amount: 0, percent: 0 };
-            const protein = data.nutrients?.protein || { amount: 0, percent: 0 };
-            const fat = data.nutrients?.fat || { amount: 0, percent: 0 };
+            document.getElementById('resMealTag').innerText = selectedMealType || '음식분석';
+            document.getElementById('resMealName').innerText = data.mealName || `${selectedMealType} - AI 영양 분석 결과`;
+            
+            const totalCals = data.totalCalories ?? data.total_calories ?? 0;
+            document.getElementById('resTotalCalories').innerText = totalCals;
+            document.getElementById('resScore').innerText = (data.score ?? 88) + '점';
 
-            document.getElementById('resCarbs').innerText = `${carbs.amount}g (${carbs.percent}%)`;
-            document.getElementById('resProtein').innerText = `${protein.amount}g (${protein.percent}%)`;
-            document.getElementById('resFat').innerText = `${fat.amount}g (${fat.percent}%)`;
+            // Extract Carbs, Protein, Fat
+            let carbs = data.carbsGrams ?? data.nutrients?.carbs?.amount ?? data.carbs ?? 0;
+            let protein = data.proteinGrams ?? data.nutrients?.protein?.amount ?? data.protein ?? 0;
+            let fat = data.fatGrams ?? data.nutrients?.fat?.amount ?? data.fat ?? 0;
 
-            // Sodium / Sugar
-            document.getElementById('resSodium').innerText = `${data.nutrients?.sodium?.amount || 0}mg`;
-            document.getElementById('resSugar').innerText = `${data.nutrients?.sugar?.amount || 0}g`;
+            let totalGramCal = (carbs * 4) + (protein * 4) + (fat * 9);
+            let carbsPct = data.nutrients?.carbs?.percent ?? (totalGramCal > 0 ? Math.round((carbs * 4 / totalGramCal) * 100) : 50);
+            let proteinPct = data.nutrients?.protein?.percent ?? (totalGramCal > 0 ? Math.round((protein * 4 / totalGramCal) * 100) : 25);
+            let fatPct = data.nutrients?.fat?.percent ?? (totalGramCal > 0 ? Math.round((fat * 9 / totalGramCal) * 100) : 25);
 
-            // Items Table
+            document.getElementById('resCarbs').innerText = `${carbs}g (${carbsPct}%)`;
+            document.getElementById('resProtein').innerText = `${protein}g (${proteinPct}%)`;
+            document.getElementById('resFat').innerText = `${fat}g (${fatPct}%)`;
+
+            // Sodium and Sugar Status
+            let sodiumVal = data.sodiumRating ?? data.nutrients?.sodium?.amount ?? '보통';
+            let sugarVal = data.sugarRating ?? data.nutrients?.sugar?.amount ?? '양호';
+            
+            document.getElementById('resSodium').innerText = typeof sodiumVal === 'number' ? `${sodiumVal}mg` : sodiumVal;
+            document.getElementById('resSugar').innerText = typeof sugarVal === 'number' ? `${sugarVal}g` : sugarVal;
+
+            // Food Items Table Rendering
             const tbody = document.getElementById('resItemsTable');
             tbody.innerHTML = '';
-            
-            if (data.items && data.items.length > 0) {
-                data.items.forEach(item => {
+
+            const itemsList = data.items || [];
+            if (itemsList.length > 0) {
+                itemsList.forEach(item => {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-slate-50 transition';
+                    const name = item.name || '음식 항목';
+                    const portion = item.portion || (item.estimatedWeightGram ? `약 ${item.estimatedWeightGram}g` : '-');
+                    const cals = item.calories ?? item.estimatedCalories ?? 0;
+                    const prot = item.protein ?? (item.estimatedProtein ? `${item.estimatedProtein}g` : '-');
+
                     tr.innerHTML = `
-                        <td class="py-2.5 px-3 font-medium text-slate-800">${item.name}</td>
-                        <td class="py-2.5 px-2 text-slate-500">${item.portion || '-'}</td>
-                        <td class="py-2.5 px-2 text-right font-semibold text-slate-700">${item.calories} kcal</td>
-                        <td class="py-2.5 px-3 text-right text-emerald-600 font-medium">${item.protein || 0}g</td>
+                        <td class="py-2.5 px-3 font-medium text-slate-800">${name}</td>
+                        <td class="py-2.5 px-2 text-slate-500">${portion}</td>
+                        <td class="py-2.5 px-2 text-right font-semibold text-slate-700">${cals} kcal</td>
+                        <td class="py-2.5 px-3 text-right text-emerald-600 font-medium">${typeof prot === 'number' ? prot + 'g' : prot}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -644,12 +734,24 @@
                 tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">상세 항목 정보를 불러올 수 없습니다.</td></tr>`;
             }
 
-            // Summary & Advice
-            document.getElementById('resSummary').innerText = data.summary || '영양성분이 고루 포함된 식단입니다.';
-            
+            // Advice & Summary Section
+            const summaryText = data.summary || data.dietitianAdvice || '영양성분 분석이 완료되었습니다.';
+            document.getElementById('resSummary').innerText = summaryText;
+
             const adviceList = document.getElementById('resAdviceList');
             adviceList.innerHTML = '';
-            (data.advice || []).forEach(adv => {
+            
+            let adviceArray = [];
+            if (Array.isArray(data.advice)) {
+                adviceArray = data.advice;
+            } else if (data.dietitianAdvice) {
+                adviceArray = [data.dietitianAdvice];
+            } else {
+                adviceArray = ['규칙적인 식습관과 균형 잡힌 영양 섭취를 권장합니다.'];
+            }
+
+            adviceArray.forEach(adv => {
+                if (!adv) return;
                 const div = document.createElement('div');
                 div.className = 'flex items-start gap-1.5';
                 div.innerHTML = `<i class="fa-solid fa-angle-right text-emerald-400 mt-0.5 text-[10px]"></i><span>${adv}</span>`;
@@ -659,20 +761,20 @@
             // Tags
             const tagsDiv = document.getElementById('resTags');
             tagsDiv.innerHTML = '';
-            (data.dietaryTags || ['밸런스식단']).forEach(tag => {
+            const tags = data.dietaryTags || ['식단분석', '영양도우미'];
+            tags.forEach(tag => {
                 const span = document.createElement('span');
                 span.className = 'px-2 py-0.5 rounded-md bg-slate-700 text-emerald-300 text-[10px] font-medium';
                 span.innerText = `#${tag}`;
                 tagsDiv.appendChild(span);
             });
 
-            // Draw Chart.js Doughnut
-            renderMacroChart(carbs.percent || 50, protein.percent || 25, fat.percent || 25);
+            // Re-render chart
+            renderMacroChart(carbsPct, proteinPct, fatPct);
         }
 
         function renderMacroChart(cPer, pPer, fPer) {
             const ctx = document.getElementById('macroChart').getContext('2d');
-            
             if (chartInstance) {
                 chartInstance.destroy();
             }
@@ -706,7 +808,6 @@
             });
         }
 
-        // LocalStorage History Handlers
         function saveMealLog() {
             if (!currentAnalysisResult) return;
 
@@ -716,7 +817,7 @@
                 date: new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
                 mealType: selectedMealType,
                 mealName: currentAnalysisResult.mealName || '식단 식별',
-                calories: currentAnalysisResult.totalCalories || 0
+                calories: currentAnalysisResult.totalCalories ?? currentAnalysisResult.total_calories ?? 0
             };
 
             existing.unshift(newEntry);
@@ -761,12 +862,171 @@
         }
 
         function clearHistory() {
-            if (confirm('모든 기록을 삭제하시겠습니까?')) {
-                localStorage.removeItem('meal_history');
-                renderHistoryList();
-                showToast('기록이 전체 삭제되었습니다.');
+            localStorage.removeItem('meal_history');
+            renderHistoryList();
+            showToast('식단 기록이 전체 삭제되었습니다.');
+        }
+    </script>
+
+    <!-- Firebase Module Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Web Config provided by user
+        const firebaseConfig = {
+            apiKey: "AIzaSyDAXhqYXFJQ1dJCiV0T7qOP9BaMLVCO_P8",
+            authDomain: "hongjunesung-88a58.firebaseapp.com",
+            projectId: "hongjunesung-88a58",
+            storageBucket: "hongjunesung-88a58.firebasestorage.app",
+            messagingSenderId: "598799668717",
+            appId: "1:598799668717:web:668ad18910c4c6ace283e4",
+            measurementId: "G-478QYCRRTQ"
+        };
+
+        // Initialize Firebase Apps
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hongjunesung-88a58';
+
+        // Authenticate User
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.warn("Firebase Anonymous Auth warning (Auth may be disabled in Firebase Console):", e.message || e);
+                // Fallback: Continue loading board posts even if Auth provider is disabled
+                subscribeBoardPosts();
             }
         }
+
+        onAuthStateChanged(auth, (user) => {
+            subscribeBoardPosts();
+        });
+
+        initAuth();
+
+        // Subscribe to real-time posts from Firestore
+        let unsubBoard = null;
+        function subscribeBoardPosts() {
+            if (unsubBoard) return; // Prevent duplicate listeners
+
+            const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'board_posts');
+
+            unsubBoard = onSnapshot(postsRef, (snapshot) => {
+                const posts = [];
+                snapshot.forEach((doc) => {
+                    posts.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort posts in memory by newest first
+                posts.sort((a, b) => {
+                    const timeA = a.createdAt?.seconds ? (a.createdAt.seconds * 1000) : (a.clientTime || 0);
+                    const timeB = b.createdAt?.seconds ? (b.createdAt.seconds * 1000) : (b.clientTime || 0);
+                    return timeB - timeA;
+                });
+
+                renderBoardPosts(posts);
+            }, (error) => {
+                console.error("Firestore onSnapshot error:", error);
+            });
+        }
+
+        function renderBoardPosts(posts) {
+            const listEl = document.getElementById('boardList');
+            const countEl = document.getElementById('boardCount');
+            if (!listEl) return;
+
+            if (countEl) countEl.innerText = `${posts.length}개`;
+
+            if (posts.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-6 text-slate-400 text-xs">
+                        <i class="fa-regular fa-comments text-2xl mb-2 text-slate-300 block"></i>
+                        등록된 의견이 없습니다. 첫 의견을 작성해 보세요!
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = posts.map(post => {
+                const dateStr = post.createdAt?.seconds 
+                    ? new Date(post.createdAt.seconds * 1000).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : (post.dateFormatted || '방금 전');
+
+                const name = post.nickname || '익명 사용자';
+                const content = escapeHtml(post.content || '');
+
+                return `
+                    <div class="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/60 transition space-y-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-1.5 font-semibold text-slate-700">
+                                <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px]">
+                                    <i class="fa-solid fa-user"></i>
+                                </span>
+                                <span>${escapeHtml(name)}</span>
+                            </div>
+                            <span class="text-[10px] text-slate-400">${dateStr}</span>
+                        </div>
+                        <p class="text-xs text-slate-700 pl-6 whitespace-pre-wrap">${content}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text;
+            return div.innerHTML;
+        }
+
+        window.submitBoardPost = async function() {
+            const nicknameInput = document.getElementById('boardNickname');
+            const contentInput = document.getElementById('boardContent');
+            const btn = document.getElementById('boardSubmitBtn');
+
+            const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+            const content = contentInput ? contentInput.value.trim() : '';
+
+            if (!content) {
+                showToast('의견 내용을 입력해주세요.', 'warning');
+                return;
+            }
+
+            try {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 저장 중...`;
+                }
+
+                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'board_posts');
+                await addDoc(postsRef, {
+                    nickname: nickname || '익명 사용자',
+                    content: content,
+                    createdAt: serverTimestamp(),
+                    clientTime: Date.now(),
+                    dateFormatted: new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                });
+
+                if (contentInput) contentInput.value = '';
+                showToast('의견이 성공적으로 등록되었습니다!');
+            } catch (err) {
+                console.error("Firestore addDoc error:", err);
+                showToast('의견 등록 실패: ' + err.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-paper-plane text-xs"></i><span>의견 등록</span>`;
+                }
+            }
+        };
     </script>
 </body>
 </html>
