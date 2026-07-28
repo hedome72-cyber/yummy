@@ -1,140 +1,112 @@
 export default async function handler(req, res) {
-    // Allow POST method only
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+  // CORS 및 HTTP 메서드 검증 (POST 요청만 허용)
+  if (req.method !== 'POST') {
+    return res.status(405).json({ 
+      error: 'Method Not Allowed',
+      message: 'POST 요청만 허용됩니다.' 
+    });
+  }
+
+  try {
+    const { imageBase64, mimeType } = req.body || {};
+
+    if (!imageBase64 || !mimeType) {
+      return res.status(400).json({ 
+        error: 'Bad Request',
+        message: '분석할 이미지 데이터(imageBase64)와 MIME 타입(mimeType)이 필요합니다.' 
+      });
     }
 
-    try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            return res.status(500).json({ 
-                error: 'GEMINI_API_KEY 환경 변수가 설정되지 않았습니다. Vercel Dashboard -> Environment Variables에 GEMINI_API_KEY를 추가해주세요.' 
-            });
-        }
-
-        const { image, mimeType, notes, mealType } = req.body;
-
-        if (!image) {
-            return res.status(400).json({ error: '분석할 이미지 데이터가 없습니다.' });
-        }
-
-        const systemPrompt = `당신은 대한민국 임상 영양사이자 급식 분석 AI 전문가입니다.
-제공된 급식 또는 음식 사진을 정밀 분석하여 영양성분 및 칼로리 정보를 JSON으로 추출해야 합니다.
-반드시 다른 설명 없이 오직 유효한 JSON 객체만 반환하세요.
-
-JSON 구조 요구사항:
-{
-  "mealName": "식단 요약 (예: 차조밥과 닭갈비 급식)",
-  "totalCalories": 680,
-  "caloriesTarget": 700,
-  "nutrients": {
-    "carbs": { "amount": 88, "unit": "g", "percent": 55 },
-    "protein": { "amount": 32, "unit": "g", "percent": 25 },
-    "fat": { "amount": 16, "unit": "g", "percent": 20 },
-    "sodium": { "amount": 850, "unit": "mg", "status": "warning" },
-    "sugar": { "amount": 12, "unit": "g", "status": "good" }
-  },
-  "score": 88,
-  "summary": "단백질 비율이 높고 영양 구성이 우수한 급식입니다. 다만 국물의 나트륨 함량이 높습니다.",
-  "items": [
-    {
-      "name": "차조밥",
-      "portion": "1공기 (약 200g)",
-      "calories": 310,
-      "carbs": 68,
-      "protein": 6,
-      "fat": 1.5,
-      "category": "주식"
-    },
-    {
-      "name": "춘천닭갈비",
-      "portion": "1접시 (약 150g)",
-      "calories": 240,
-      "carbs": 10,
-      "protein": 22,
-      "fat": 12,
-      "category": "주요리"
+    // Vercel 환경 변수에서 GEMINI_API_KEY 로드
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('환경 변수 GEMINI_API_KEY가 설정되어 있지 않습니다.');
+      return res.status(500).json({ 
+        error: 'Server Configuration Error',
+        message: '서버에 GEMINI_API_KEY가 설정되지 않았습니다. Vercel 환경 변수를 확인해주세요.' 
+      });
     }
-  ],
-  "advice": [
-    "국물의 건더기 위주로 드시면 나트륨 섭취를 30% 이상 줄일 수 있습니다.",
-    "식후 우유나 방울토마토 간식을 더하면 완벽한 균형이 완성됩니다."
-  ],
-  "dietaryTags": ["고단백", "적정칼로리", "나트륨주의"]
-}`;
 
-        const userPrompt = `이 ${mealType || '급식'} 사진을 분석해주세요. ${notes ? '추가 특이사항 메모: ' + notes : ''}`;
+    // 구조화된 JSON 응답을 유도하는 프롬프트 작성
+    const promptText = `
+      제시된 급식/음식 사진을 정확히 분석하여 다음 영양 정보를 산출해줘.
+      반드시 아래 JSON 형식으로만 답변을 반환해야 하며, 다른 설명이나 텍스트는 붙이지 마.
 
-        const payload = {
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: userPrompt },
-                        {
-                            inlineData: {
-                                mimeType: mimeType || 'image/jpeg',
-                                data: image
-                            }
-                        }
-                    ]
-                }
-            ],
-            systemInstruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.2
+      {
+        "items": [
+          { "name": "음식 이름", "calories": 000 }
+        ],
+        "totalCalories": 000,
+        "nutrients": {
+          "carbs": "00g",
+          "protein": "00g",
+          "fat": "00g"
+        },
+        "advice": "식단에 대한 친절한 한 줄 영양 조언"
+      }
+    `;
+
+    // Gemini 1.5 Flash 모델 REST API URL
+    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const requestPayload = {
+      contents: [
+        {
+          parts: [
+            { text: promptText },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: imageBase64
+              }
             }
-        };
-
-        const primaryModel = 'gemini-2.0-flash-lite';
-        let apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:generateContent?key=${apiKey}`;
-
-        let response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        // Fallback model retry if primary model returns 404
-        if (!response.ok && response.status === 404) {
-            console.warn(`Model ${primaryModel} returned 404, falling back to gemini-2.0-flash`);
-            const fallbackModel = 'gemini-2.0-flash';
-            apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`;
-            response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+          ]
         }
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2
+      }
+    };
 
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `Gemini API 호출 실패 (상태 코드: ${response.status})`);
-        }
+    const geminiResponse = await fetch(geminiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestPayload)
+    });
 
-        const data = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        const cleanedText = responseText ? responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim() : '';
-
-        if (!cleanedText) {
-            throw new Error('AI 응답 데이터를 처리할 수 없습니다.');
-        }
-
-        try {
-            const parsedResult = JSON.parse(cleanedText);
-            return res.status(200).json(parsedResult);
-        } catch (pErr) {
-            throw new Error('AI 응답 JSON 파싱 실패');
-        }
-
-    } catch (error) {
-        console.error('API Serverless Error:', error);
-        return res.status(500).json({ 
-            error: error.message || '서버 내부 오류가 발생했습니다.' 
-        });
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API Response Error:', errorText);
+      return res.status(geminiResponse.status).json({
+        error: 'Gemini API Error',
+        message: `Gemini API 호출에 실패했습니다. (상태 코드: ${geminiResponse.status})`
+      });
     }
+
+    const responseData = await geminiResponse.json();
+    const resultText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!resultText) {
+      return res.status(500).json({
+        error: 'Parsing Error',
+        message: 'Gemini API로부터 유효한 응답 텍스트를 받지 못했습니다.'
+      });
+    }
+
+    // 마크다운 코드 블록(```json ... ```) 제거 후 파싱
+    const cleanedJsonText = resultText.replace(/```json|```/g, '').trim();
+    const parsedResult = JSON.parse(cleanedJsonText);
+
+    return res.status(200).json(parsedResult);
+
+  } catch (error) {
+    console.error('Serverless Function Execution Error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || '서버 내부 처리 중 오류가 발생했습니다.'
+    });
+  }
 }
