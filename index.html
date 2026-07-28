@@ -4,11 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI 급식 칼로리 도우미 & 사용자 게시판</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons CDN -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <!-- Google Fonts Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -18,10 +15,8 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center p-4 sm:p-6">
 
-  <!-- Main Wrapper Container -->
   <div class="w-full max-w-md mx-auto space-y-6">
 
-    <!-- Header Section -->
     <header class="text-center pt-2 pb-1">
       <div class="inline-flex items-center justify-center p-3 bg-emerald-100 text-emerald-600 rounded-2xl mb-3 shadow-sm">
         <i class="fa-solid fa-utensils text-2xl"></i>
@@ -30,7 +25,6 @@
       <p class="text-sm text-slate-500 mt-1">급식 사진을 찍어 칼로리를 분석하고 의견을 나눠보세요</p>
     </header>
 
-    <!-- Navigation Tabs -->
     <div class="flex bg-slate-200/80 p-1 rounded-xl font-medium text-sm text-slate-600">
       <button id="tab-analyzer-btn" onclick="switchTab('analyzer')" class="flex-1 py-2 rounded-lg bg-white text-emerald-600 shadow-sm transition-all duration-200 font-semibold">
         <i class="fa-solid fa-camera mr-1.5"></i>칼로리 분석
@@ -40,9 +34,7 @@
       </button>
     </div>
 
-    <!-- SECTION 1: Calorie Analyzer -->
     <section id="section-analyzer" class="space-y-4">
-      <!-- Upload Card -->
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
         <div id="uploadContainer" onclick="document.getElementById('imageInput').click()" 
              class="border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-xl p-6 text-center cursor-pointer transition-all duration-200 group">
@@ -57,7 +49,6 @@
             <p class="text-xs text-slate-400">클릭하여 사진을 선택하세요 (자동 압축 처리)</p>
           </div>
 
-          <!-- Image Preview Container -->
           <div id="previewWrapper" class="hidden relative">
             <img id="imagePreview" alt="급식 미리보기" class="w-full h-52 object-cover rounded-lg shadow-sm" />
             <span id="compressionBadge" class="absolute bottom-2 left-2 bg-slate-900/75 text-white text-[10px] px-2 py-1 rounded-md backdrop-blur-sm">
@@ -76,7 +67,6 @@
         </button>
       </div>
 
-      <!-- Loading State -->
       <div id="loadingCard" class="hidden bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-3">
         <div class="inline-block animate-spin text-emerald-600 text-3xl">
           <i class="fa-solid fa-circle-notch"></i>
@@ -85,7 +75,6 @@
         <p class="text-xs text-slate-400">음식 종류 인식 및 영양소 계산 중 ⏳</p>
       </div>
 
-      <!-- Result Card -->
       <div id="resultCard" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <h2 class="font-bold text-slate-800 text-lg flex items-center">
@@ -94,14 +83,12 @@
           <span class="text-xs font-semibold px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full">AI 분석완료</span>
         </div>
 
-        <!-- Total Calories Banner -->
         <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl p-4 text-center shadow-sm">
           <span class="text-xs uppercase tracking-wider opacity-90 block mb-1">총 예상 칼로리</span>
           <span id="totalCalories" class="text-3xl font-extrabold tracking-tight">0</span>
           <span class="text-sm font-medium opacity-90 ml-1">kcal</span>
         </div>
 
-        <!-- Nutrient Breakdown Cards -->
         <div class="grid grid-cols-3 gap-2">
           <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
             <span class="text-xs text-slate-500 font-medium block">탄수화물</span>
@@ -117,13 +104,11 @@
           </div>
         </div>
 
-        <!-- Food List -->
         <div>
           <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">인식된 음식 항목</h3>
           <div id="foodList" class="divide-y divide-slate-100 rounded-xl bg-slate-50 px-3 py-1 border border-slate-100"></div>
         </div>
 
-        <!-- Advice Box -->
         <div class="bg-amber-50 border border-amber-200/60 rounded-xl p-3.5 flex items-start space-x-2.5">
           <i class="fa-solid fa-lightbulb text-amber-500 text-base mt-0.5 shrink-0"></i>
           <p id="adviceText" class="text-xs text-amber-900 leading-relaxed font-medium"></p>
@@ -131,9 +116,7 @@
       </div>
     </section>
 
-    <!-- SECTION 2: Feedback Board -->
     <section id="section-board" class="hidden space-y-4">
-      <!-- Write Form Card -->
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
         <h2 class="font-bold text-slate-800 text-base flex items-center">
           <i class="fa-solid fa-pen-to-square text-emerald-600 mr-2"></i>의견 남기기
@@ -155,7 +138,6 @@
         </form>
       </div>
 
-      <!-- Posts List Card -->
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
         <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <h2 class="font-bold text-slate-800 text-base flex items-center">
@@ -174,7 +156,6 @@
 
   </div>
 
-  <!-- Firebase SDK Modules & App Logic -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { 
@@ -187,7 +168,7 @@
       serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ③ 사용자 지정 Firebase 설정값
+    // Firebase 설정값
     const firebaseConfig = {
       apiKey: "AIzaSyDAXhqYXFJQ1dJCiV0T7qOP9BaMLVCO_P8",
       authDomain: "hongjunesung-88a58.firebaseapp.com",
@@ -208,7 +189,7 @@
     const contentInput = document.getElementById("content-input");
     const postsList = document.getElementById("posts-list");
 
-    // ① 글 저장 함수 (Firestore)
+    // 글 저장 함수 (Firestore)
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -239,7 +220,7 @@
       }
     });
 
-    // ② & ⑤ 실시간 게시글 수신 및 최신순 정렬
+    // 실시간 게시글 수신 및 최신순 정렬
     const q = query(
       collection(db, "feedback"), 
       orderBy("createdAt", "desc")
@@ -392,7 +373,7 @@
       });
     }
 
-    // AI 이미지 분석 호출 (Gemini API)
+    // AI 이미지 분석 호출 (서버리스 함수 /api/generate 경유)
     async function analyzeImage() {
       if (!selectedCompressedBase64) return;
 
@@ -404,62 +385,12 @@
       resultCard.classList.add('hidden');
       analyzeBtn.disabled = true;
 
-      const promptText = `
-        제시된 급식/음식 사진을 분석하여 영양 정보와 칼로리를 산출해줘.
-        다음 정보를 명확하게 분석해줘:
-        1. 각 음식 항목 이름과 예상 칼로리(kcal)
-        2. 전체 총 칼로리(totalCalories)
-        3. 주요 영양소 (탄수화물 carbs, 단백질 protein, 지방 fat)
-        4. 식단 관련 한 줄 조언(advice)
-      `;
-
-      // Gemini REST API 요청 구성 (Canvas 환경 및 직접 실행 지원)
-      const apiKey = ""; // 런타임 환경에 따라 자동 주입 또는 API Key 사용
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      // Vercel Serverless Function 호출 경로
+      const apiUrl = '/api/generate';
 
       const payload = {
-        contents: [{
-          parts: [
-            { text: promptText },
-            {
-              inlineData: {
-                mimeType: selectedMimeType || "image/jpeg",
-                data: selectedCompressedBase64
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              items: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    name: { type: "STRING" },
-                    calories: { type: "NUMBER" }
-                  },
-                  required: ["name", "calories"]
-                }
-              },
-              totalCalories: { type: "NUMBER" },
-              nutrients: {
-                type: "OBJECT",
-                properties: {
-                  carbs: { type: "STRING" },
-                  protein: { type: "STRING" },
-                  fat: { type: "STRING" }
-                },
-                required: ["carbs", "protein", "fat"]
-              },
-              advice: { type: "STRING" }
-            },
-            required: ["items", "totalCalories", "nutrients", "advice"]
-          }
-        }
+        imageBase64: selectedCompressedBase64,
+        mimeType: selectedMimeType || "image/jpeg"
       };
 
       try {
@@ -470,17 +401,11 @@
         });
 
         if (!response.ok) {
-          throw new Error(`API 응답 오류 (${response.status})`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `API 응답 오류 (${response.status})`);
         }
 
-        const resData = await response.json();
-        const jsonText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!jsonText) {
-          throw new Error("올바른 분석 결과를 받지 못했습니다.");
-        }
-
-        const parsedData = JSON.parse(jsonText);
+        const parsedData = await response.json();
         renderResults(parsedData);
 
       } catch (err) {
