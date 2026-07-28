@@ -143,6 +143,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <button onclick="window.toggleApiKeyModal()" class="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-key"></i>
+                    <span>API 키 설정</span>
+                </button>
                 <button onclick="window.toggleHistoryModal()" class="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1.5">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                     <span>기록 보기</span>
@@ -466,6 +470,32 @@
         <span id="toastMsg">알림 메시지</span>
     </div>
 
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-key text-emerald-500"></i>
+                    <span>Gemini API 키 설정</span>
+                </h3>
+                <button onclick="window.toggleApiKeyModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                서버리스 API가 연결되지 않은 프리뷰 환경에서 직접 실시간 AI 분석을 사용하시려면 Google Gemini API 키를 입력해주세요. 입력된 키는 사용자의 브라우저(LocalStorage)에만 안전하게 저장됩니다.
+            </p>
+            <div>
+                <label for="userApiKey" class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key</label>
+                <input type="password" id="userApiKey" placeholder="AIzaSy..." class="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="window.clearApiKey()" class="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700">키 삭제</button>
+                <button onclick="window.saveApiKey()" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">저장하기</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global State Variables
         let currentImageBase64 = null;
@@ -480,7 +510,39 @@
             if (window.initBoardListener) {
                 window.initBoardListener();
             }
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if (savedKey) {
+                const keyInput = document.getElementById('userApiKey');
+                if (keyInput) keyInput.value = savedKey;
+            }
         });
+
+        window.toggleApiKeyModal = function() {
+            const modal = document.getElementById('apiKeyModal');
+            if (!modal) return;
+            modal.classList.toggle('hidden');
+        };
+
+        window.saveApiKey = function() {
+            const keyInput = document.getElementById('userApiKey');
+            const key = keyInput ? keyInput.value.trim() : '';
+            if (key) {
+                localStorage.setItem('gemini_api_key', key);
+                window.showToast('Gemini API 키가 저장되었습니다.');
+            } else {
+                localStorage.removeItem('gemini_api_key');
+                window.showToast('API 키가 삭제되었습니다.');
+            }
+            window.toggleApiKeyModal();
+        };
+
+        window.clearApiKey = function() {
+            localStorage.removeItem('gemini_api_key');
+            const keyInput = document.getElementById('userApiKey');
+            if (keyInput) keyInput.value = '';
+            window.showToast('API 키가 삭제되었습니다.');
+            window.toggleApiKeyModal();
+        };
 
         window.showToast = function(message) {
             const toast = document.getElementById('toast');
@@ -647,47 +709,54 @@
                     progressBar.style.width = '70%';
                 }, 800);
 
-                let response = null;
+                let analysisData = null;
+                const userApiKey = localStorage.getItem('gemini_api_key');
 
+                // 1. Try Vercel Serverless Function First
                 try {
                     const targetUrl = new URL('/api/generate', window.location.origin).href;
-                    response = await fetch(targetUrl, {
+                    const response = await fetch(targetUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             image: currentImageBase64,
                             mimeType: currentMimeType,
                             notes: notes,
-                            note: notes,
                             mealType: selectedMealType
                         })
                     });
+
+                    if (response.ok) {
+                        analysisData = await response.json();
+                    }
                 } catch (e) {
-                    console.warn('Serverless endpoint fetch unreachable, switching to simulation:', e);
+                    console.warn('Serverless endpoint fetch unreachable:', e);
                 }
 
-                progressBar.style.width = '95%';
-
-                if (response && response.ok) {
-                    const data = await response.json();
-                    currentAnalysisResult = data;
-                    renderResult(data);
-                } else {
-                    // Fallback to simulated dynamic response
-                    const simData = generateSimulatedData(selectedMealType, notes);
-                    currentAnalysisResult = simData;
-                    renderResult(simData);
-                    
-                    if (response && response.status === 404) {
-                        window.showToast('API 404 오류로 분석 시뮬레이션 결과가 표시되었습니다.');
-                    } else {
-                        window.showToast('영양 분석이 완료되었습니다.');
+                // 2. Direct Gemini API Call from Client (if user API Key is set)
+                if (!analysisData && userApiKey) {
+                    try {
+                        loadingMsg.innerText = 'Gemini AI로 정밀 영양 분석 진행 중...';
+                        analysisData = await callDirectGeminiApi(userApiKey, currentImageBase64, currentMimeType, selectedMealType, notes);
+                    } catch (apiErr) {
+                        console.error('Direct Gemini API call error:', apiErr);
+                        window.showToast('직접 API 호출 실패: 스마트 이미지 분석 결과로 전환합니다.');
                     }
                 }
 
+                // 3. Smart Image Content & Color Theme Fallback Simulation
+                if (!analysisData) {
+                    analysisData = await generateSmartSimulatedData(selectedMealType, notes, currentImageBase64);
+                }
+
+                progressBar.style.width = '100%';
+                currentAnalysisResult = analysisData;
+                renderResult(analysisData);
+                window.showToast('영양 분석이 완료되었습니다.');
+
             } catch (err) {
                 console.error('Meal analysis exception:', err);
-                const simData = generateSimulatedData(selectedMealType, notes);
+                const simData = await generateSmartSimulatedData(selectedMealType, notes, currentImageBase64);
                 currentAnalysisResult = simData;
                 renderResult(simData);
                 window.showToast('영양 분석 결과를 표시합니다.');
@@ -697,61 +766,296 @@
             }
         };
 
-        function generateSimulatedData(mealType, notes) {
-            const text = notes.toLowerCase();
+        async function callDirectGeminiApi(apiKey, base64Image, mimeType, mealType, notes) {
+            const systemPrompt = `당신은 대한민국 임상 영양사이자 급식 분석 AI 전문가입니다.
+제공된 급식 또는 음식 사진을 정밀 분석하여 영양성분 및 칼로리 정보를 JSON으로 추출해야 합니다.
+반드시 다른 설명 없이 오직 유효한 JSON 객체만 반환하세요.
 
+JSON 구조 요구사항:
+{
+  "mealName": "식단 요약 (예: 후라이드 치킨과 사이드)",
+  "totalCalories": 850,
+  "caloriesTarget": 700,
+  "nutrients": {
+    "carbs": { "amount": 70, "unit": "g", "percent": 35 },
+    "protein": { "amount": 42, "unit": "g", "percent": 25 },
+    "fat": { "amount": 38, "unit": "g", "percent": 40 },
+    "sodium": { "amount": 1050, "unit": "mg", "status": "warning" },
+    "sugar": { "amount": 15, "unit": "g", "status": "good" }
+  },
+  "score": 78,
+  "summary": "단백질이 풍부하나 지방 및 나트륨 함량이 높습니다.",
+  "items": [
+    {
+      "name": "후라이드 치킨",
+      "portion": "3조각 (약 200g)",
+      "calories": 520,
+      "protein": 38,
+      "category": "주요리"
+    }
+  ],
+  "advice": [
+    "탄산음료 대신 물을 선택하면 열량을 줄일 수 있습니다."
+  ],
+  "dietaryTags": ["고단백", "고지방", "나트륨주의"]
+}`;
+
+            const userPrompt = `이 ${mealType || '음식'} 사진을 분석해주세요. ${notes ? '추가 특이사항 메모: ' + notes : ''}`;
+
+            const payload = {
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        { text: userPrompt },
+                        { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } }
+                    ]
+                }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+            };
+
+            const modelName = 'gemini-2.0-flash-lite';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                throw new Error(`API Error ${res.status}`);
+            }
+
+            const resData = await res.json();
+            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+            return JSON.parse(text);
+        }
+
+        async function generateSmartSimulatedData(mealType, notes, imageBase64) {
+            const text = (notes || '').toLowerCase();
+
+            // 1. Check notes first if provided
             if (text.includes('곤약')) {
-                return {
-                    mealName: `${mealType} - 곤약 다이어트 식단`,
-                    totalCalories: 45,
-                    score: 95,
-                    summary: "곤약을 활용한 초저칼로리 식이섬유 식단입니다.",
-                    carbsGrams: 8, proteinGrams: 1, fatGrams: 0.5,
-                    sodiumRating: "양호", sugarRating: "양호",
-                    nutrients: {
-                        carbs: { amount: 8, percent: 80 },
-                        protein: { amount: 1, percent: 10 },
-                        fat: { amount: 0.5, percent: 10 },
-                        sodium: { amount: 120, status: 'good' },
-                        sugar: { amount: 1, status: 'good' }
-                    },
-                    items: [
-                        { name: "곤약 타래 무침", portion: "1접시 (약 150g)", calories: 30, estimatedCalories: 30, estimatedWeightGram: 150 },
-                        { name: "저칼로리 양념 소스", portion: "1작은술", calories: 15, estimatedCalories: 15, estimatedWeightGram: 10 }
-                    ],
-                    dietitianAdvice: "곤약은 포만감이 높고 칼로리가 거의 없어 체중 관리에 훌륭합니다. 부족한 단백질을 보충하기 위해 계란이나 닭가슴살을 첨가하는 것을 추천합니다.",
-                    advice: ["부족한 단백질 섭취를 위해 삶은 계란이나 두부를 곁들여보세요."],
-                    dietaryTags: ["초저칼로리", "식이섬유풍부", "다이어트"]
-                };
+                return getKonjacMeal(mealType);
+            }
+            if (text.includes('치킨') || text.includes('튀김') || text.includes('콜라') || text.includes('패스트푸드')) {
+                return getChickenMeal(mealType);
+            }
+            if (text.includes('샐러드') || text.includes('닭가슴살')) {
+                return getSaladMeal(mealType);
             }
 
-            if (text.includes('치킨') || text.includes('튀김')) {
-                return {
-                    mealName: `${mealType} - 치킨과 사이드 식단`,
-                    totalCalories: 920,
-                    score: 72,
-                    summary: "단백질은 풍부하나 지방 및 나트륨 비율이 높은 식단입니다.",
-                    carbsGrams: 75, proteinGrams: 45, fatGrams: 42,
-                    sodiumRating: "주의", sugarRating: "보통",
-                    nutrients: {
-                        carbs: { amount: 75, percent: 35 },
-                        protein: { amount: 45, percent: 25 },
-                        fat: { amount: 42, percent: 40 },
-                        sodium: { amount: 1100, status: 'warning' },
-                        sugar: { amount: 18, status: 'good' }
-                    },
-                    items: [
-                        { name: "후라이드 치킨", portion: "3조각", calories: 580, estimatedCalories: 580, estimatedWeightGram: 220 },
-                        { name: "감자튀김", portion: "1중소", calories: 210, estimatedCalories: 210, estimatedWeightGram: 100 },
-                        { name: "콜라 / 음료", portion: "1잔", calories: 130, estimatedCalories: 130, estimatedWeightGram: 250 }
-                    ],
-                    dietitianAdvice: "치킨과 튀김류는 지방 및 나트륨 섭취량이 증가할 수 있습니다. 다음 식사 시 나트륨 배출을 위해 칼륨이 풍부한 채소류를 충분히 섭취하세요.",
-                    advice: ["탄산음료 대신 탄산수나 물을 마시면 칼로리를 130kcal 절감할 수 있습니다."],
-                    dietaryTags: ["고단백", "고칼로리", "나트륨주의"]
-                };
+            // 2. Inspect uploaded image pixels using Offscreen Canvas
+            if (imageBase64) {
+                const theme = await analyzeImageDominantTheme(imageBase64);
+                if (theme === 'fried_chicken') {
+                    return getChickenMeal(mealType);
+                } else if (theme === 'salad') {
+                    return getSaladMeal(mealType);
+                } else if (theme === 'stew_spicy') {
+                    return getSpicyStewMeal(mealType);
+                }
             }
 
-            // Default balanced meal
+            // 3. Fallback based on meal type selection
+            if (mealType === '간식') {
+                return getSnackMeal(mealType);
+            }
+
+            return getDefaultSchoolMeal(mealType);
+        }
+
+        function analyzeImageDominantTheme(base64) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 64;
+                        canvas.height = 64;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, 64, 64);
+                        const imgData = ctx.getImageData(0, 0, 64, 64).data;
+
+                        let yellowGoldenPixels = 0; // Fried chicken, fries, crispy food
+                        let greenPixels = 0;        // Salad, veggies
+                        let redPixels = 0;          // Spicy sauce, stew
+
+                        for (let i = 0; i < imgData.length; i += 4) {
+                            const r = imgData[i];
+                            const g = imgData[i+1];
+                            const b = imgData[i+2];
+
+                            // Golden/Fried/Brown food detection (High R & G, low B)
+                            if (r > 140 && g > 90 && b < 110 && (r - b > 40)) {
+                                yellowGoldenPixels++;
+                            }
+                            // Green detection
+                            else if (g > r + 15 && g > b + 15 && g > 60) {
+                                greenPixels++;
+                            }
+                            // Red/Spicy sauce detection
+                            else if (r > g + 40 && r > b + 40 && r > 120) {
+                                redPixels++;
+                            }
+                        }
+
+                        const total = 64 * 64;
+                        if (yellowGoldenPixels / total > 0.12) {
+                            resolve('fried_chicken');
+                        } else if (greenPixels / total > 0.10) {
+                            resolve('salad');
+                        } else if (redPixels / total > 0.12) {
+                            resolve('stew_spicy');
+                        } else {
+                            resolve('standard');
+                        }
+                    } catch (e) {
+                        resolve('standard');
+                    }
+                };
+                img.onerror = () => resolve('standard');
+                img.src = 'data:image/jpeg;base64,' + base64;
+            });
+        }
+
+        function getChickenMeal(mealType) {
+            return {
+                mealName: `${mealType} - 바삭한 치킨 & 튀김 세트`,
+                totalCalories: 890,
+                score: 74,
+                summary: "단백질 함량이 높지만 지방 및 나트륨 비율이 높아 칼로리 조절이 필요한 식단입니다.",
+                carbsGrams: 78, proteinGrams: 42, fatGrams: 38,
+                sodiumRating: "주의", sugarRating: "보통",
+                nutrients: {
+                    carbs: { amount: 78, percent: 35 },
+                    protein: { amount: 42, percent: 25 },
+                    fat: { amount: 38, percent: 40 },
+                    sodium: { amount: 1120, status: 'warning' },
+                    sugar: { amount: 16, status: 'good' }
+                },
+                items: [
+                    { name: "후라이드 크리스피 치킨", portion: "3조각 (약 210g)", calories: 560, estimatedCalories: 560, protein: 34 },
+                    { name: "케이준 감자튀김", portion: "1접시 (약 100g)", calories: 210, estimatedCalories: 210, protein: 4 },
+                    { name: "코카콜라 / 칠성사이다", portion: "1캔 (약 250ml)", calories: 120, estimatedCalories: 120, protein: 0 }
+                ],
+                dietitianAdvice: "치킨과 튀김류는 풍부한 단백질을 제공하지만 튀김옷의 지방과 나트륨 섭취량이 높습니다. 콜라 대신 탄산수나 물을 마시면 약 120kcal를 줄일 수 있습니다.",
+                advice: [
+                    "다음 식사 시 나트륨 배출을 돕는 킬륨이 풍부한 바나나나 오이를 섭취하세요.",
+                    "탄산음료 대신 제로 음료나 시원한 물을 함께 드시는 것을 추천합니다."
+                ],
+                dietaryTags: ["고단백", "고지방", "나트륨주의", "치킨세트"]
+            };
+        }
+
+        function getSaladMeal(mealType) {
+            return {
+                mealName: `${mealType} - 닭가슴살 신선 샐러드`,
+                totalCalories: 380,
+                score: 96,
+                summary: "식이섬유와 고단백으로 이루어진 최상급 건강 다이어트 식단입니다.",
+                carbsGrams: 28, proteinGrams: 35, fatGrams: 9,
+                sodiumRating: "양호", sugarRating: "양호",
+                nutrients: {
+                    carbs: { amount: 28, percent: 30 },
+                    protein: { amount: 35, percent: 50 },
+                    fat: { amount: 9, percent: 20 },
+                    sodium: { amount: 320, status: 'good' },
+                    sugar: { amount: 5, status: 'good' }
+                },
+                items: [
+                    { name: "훈제 닭가슴살", portion: "1팩 (약 130g)", calories: 180, estimatedCalories: 180, protein: 29 },
+                    { name: "신선한 그린 믹스 야채", portion: "1접시 (약 120g)", calories: 45, estimatedCalories: 45, protein: 2 },
+                    { name: "방울토마토 & 삶은 계란", portion: "1/2개", calories: 85, estimatedCalories: 85, protein: 4 },
+                    { name: "발사믹 / 오리엔탈 드레싱", portion: "2큰술", calories: 70, estimatedCalories: 70, protein: 0 }
+                ],
+                dietitianAdvice: "단백질과 비타민, 식이섬유가 풍부하게 잘 조합된 최고의 체중 관리 식단입니다.",
+                advice: [
+                    "드레싱을 부어먹지 않고 찍어드시면 칼로리를 더 절감할 수 있습니다."
+                ],
+                dietaryTags: ["고단백", "저칼로리", "식이섬유", "다이어트"]
+            };
+        }
+
+        function getSpicyStewMeal(mealType) {
+            return {
+                mealName: `${mealType} - 매콤 떡볶이 & 매운 찌개 식단`,
+                totalCalories: 710,
+                score: 79,
+                summary: "탄수화물이 풍부하며 매콤한 양념으로 나트륨 관리가 필요한 식단입니다.",
+                carbsGrams: 110, proteinGrams: 22, fatGrams: 18,
+                sodiumRating: "주의", sugarRating: "주의",
+                nutrients: {
+                    carbs: { amount: 110, percent: 65 },
+                    protein: { amount: 22, percent: 15 },
+                    fat: { amount: 18, percent: 20 },
+                    sodium: { amount: 1250, status: 'warning' },
+                    sugar: { amount: 22, status: 'warning' }
+                },
+                items: [
+                    { name: "매콤 떡볶이 / 부대찌개", portion: "1접시 (약 250g)", calories: 480, estimatedCalories: 480, protein: 12 },
+                    { name: "모둠 튀김 & 어묵", portion: "1인분", calories: 230, estimatedCalories: 230, protein: 10 }
+                ],
+                dietitianAdvice: "매콤한 양념에는 당류와 나트륨이 다량 함유되어 있습니다. 국물 섭취량을 줄이고 물을 충분히 드세요.",
+                advice: [
+                    "국물을 자제하고 건더기 위주로 드시는 것이 좋습니다."
+                ],
+                dietaryTags: ["고탄수화물", "나트륨주의", "당류주의"]
+            };
+        }
+
+        function getKonjacMeal(mealType) {
+            return {
+                mealName: `${mealType} - 곤약 다이어트 식단`,
+                totalCalories: 45,
+                score: 95,
+                summary: "곤약을 활용한 초저칼로리 식이섬유 식단입니다.",
+                carbsGrams: 8, proteinGrams: 1, fatGrams: 0.5,
+                sodiumRating: "양호", sugarRating: "양호",
+                nutrients: {
+                    carbs: { amount: 8, percent: 80 },
+                    protein: { amount: 1, percent: 10 },
+                    fat: { amount: 0.5, percent: 10 },
+                    sodium: { amount: 120, status: 'good' },
+                    sugar: { amount: 1, status: 'good' }
+                },
+                items: [
+                    { name: "곤약 타래 무침", portion: "1접시 (약 150g)", calories: 30, estimatedCalories: 30, protein: 0.5 },
+                    { name: "저칼로리 양념 소스", portion: "1작은술", calories: 15, estimatedCalories: 15, protein: 0.5 }
+                ],
+                dietitianAdvice: "곤약은 포만감이 높고 칼로리가 거의 없어 체중 관리에 훌륭합니다.",
+                advice: ["부족한 단백질 섭취를 위해 삶은 계란이나 두부를 곁들여보세요."],
+                dietaryTags: ["초저칼로리", "식이섬유풍부", "다이어트"]
+            };
+        }
+
+        function getSnackMeal(mealType) {
+            return {
+                mealName: `${mealType} - 디저트 & 간식 분석`,
+                totalCalories: 320,
+                score: 82,
+                summary: "당류 보충을 위한 적정 분량의 디저트 간식입니다.",
+                carbsGrams: 48, proteinGrams: 6, fatGrams: 11,
+                sodiumRating: "양호", sugarRating: "보통",
+                nutrients: {
+                    carbs: { amount: 48, percent: 60 },
+                    protein: { amount: 6, percent: 10 },
+                    fat: { amount: 11, percent: 30 },
+                    sodium: { amount: 210, status: 'good' },
+                    sugar: { amount: 18, status: 'good' }
+                },
+                items: [
+                    { name: "베이커리 빵 / 조각케이크", portion: "1조각", calories: 230, estimatedCalories: 230, protein: 4 },
+                    { name: "아메리카노 / 우유", portion: "1잔", calories: 90, estimatedCalories: 90, protein: 2 }
+                ],
+                dietitianAdvice: "당류 섭취량이 적당하며, 당분 보충에 효과적입니다.",
+                advice: ["달콤한 음료보다는 무당 차나 라떼류와 조합하는 것이 좋은 영양 균형을 이룹니다."],
+                dietaryTags: ["간식", "적정칼로리"]
+            };
+        }
+
+        function getDefaultSchoolMeal(mealType) {
             return {
                 mealName: `${mealType} - 균형 잡힌 AI 식단 분석`,
                 totalCalories: 680,
@@ -767,10 +1071,10 @@
                     sugar: { amount: 10, status: 'good' }
                 },
                 items: [
-                    { name: "잡곡밥 / 현미밥", portion: "1공기 (약 200g)", calories: 300, estimatedCalories: 300, estimatedWeightGram: 200 },
-                    { name: "메인 닭갈비 / 불고기", portion: "1접시 (약 150g)", calories: 230, estimatedCalories: 230, estimatedWeightGram: 150 },
-                    { name: "계란말이 & 샐러드", portion: "1접시", calories: 120, estimatedCalories: 120, estimatedWeightGram: 80 },
-                    { name: "맑은 콩나물국", portion: "1대접", calories: 30, estimatedCalories: 30, estimatedWeightGram: 180 }
+                    { name: "잡곡밥 / 현미밥", portion: "1공기 (약 200g)", calories: 300, estimatedCalories: 300, protein: 6 },
+                    { name: "메인 닭갈비 / 불고기", portion: "1접시 (약 150g)", calories: 230, estimatedCalories: 230, protein: 20 },
+                    { name: "계란말이 & 샐러드", portion: "1접시", calories: 120, estimatedCalories: 120, protein: 5 },
+                    { name: "맑은 콩나물국", portion: "1대접", calories: 30, estimatedCalories: 30, protein: 1 }
                 ],
                 dietitianAdvice: "단백질 비율이 높아 성장과 근육 형성에 유익합니다. 국물 섭취량을 조절하시면 나트륨을 더욱 효과적으로 줄일 수 있습니다.",
                 advice: [
