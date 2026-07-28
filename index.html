@@ -692,6 +692,13 @@
                 return;
             }
 
+            // Disable button during analysis to prevent rapid request bursts (429 Rate Limits)
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            if (analyzeBtn) {
+                analyzeBtn.disabled = true;
+                analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+
             const notes = document.getElementById('notesInput').value.trim();
 
             document.getElementById('emptyState').classList.add('hidden');
@@ -739,8 +746,12 @@
                         loadingMsg.innerText = 'Gemini AI로 정밀 영양 분석 진행 중...';
                         analysisData = await callDirectGeminiApi(userApiKey, currentImageBase64, currentMimeType, selectedMealType, notes);
                     } catch (apiErr) {
-                        console.error('Direct Gemini API call error:', apiErr);
-                        window.showToast('직접 API 호출 실패: 스마트 이미지 분석 결과로 전환합니다.');
+                        console.warn('Direct Gemini API call issue:', apiErr.message);
+                        if (apiErr.status === 429 || apiErr.message?.includes('429')) {
+                            window.showToast('API 요청 한도 초과(429). 스마트 대체 분석 모드로 전환합니다.');
+                        } else {
+                            window.showToast('직접 API 호출 실패: 스마트 이미지 분석 결과로 전환합니다.');
+                        }
                     }
                 }
 
@@ -761,12 +772,17 @@
                 renderResult(simData);
                 window.showToast('영양 분석 결과를 표시합니다.');
             } finally {
+                // Re-enable submit button after process finishes
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('resultContent').classList.remove('hidden');
             }
         };
 
-        async function callDirectGeminiApi(apiKey, base64Image, mimeType, mealType, notes) {
+        async function callDirectGeminiApi(apiKey, base64Image, mimeType, mealType, notes, maxRetries = 2) {
             const systemPrompt = `당신은 대한민국 임상 영양사이자 급식 분석 AI 전문가입니다.
 제공된 급식 또는 음식 사진을 정밀 분석하여 영양성분 및 칼로리 정보를 JSON으로 추출해야 합니다.
 반드시 다른 설명 없이 오직 유효한 JSON 객체만 반환하세요.
@@ -817,19 +833,31 @@ JSON 구조 요구사항:
             const modelName = 'gemini-2.0-flash-lite';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-            if (!res.ok) {
-                throw new Error(`API Error ${res.status}`);
+                if (res.ok) {
+                    const resData = await res.json();
+                    const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+                    return JSON.parse(text);
+                }
+
+                // If Rate Limited (429), wait and retry automatically with backoff delay
+                if (res.status === 429 && attempt < maxRetries) {
+                    const delayMs = Math.pow(2, attempt) * 1500;
+                    console.warn(`Gemini API 429 Rate Limit encountered. Retrying in ${delayMs}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+
+                const err = new Error(`API Error ${res.status}`);
+                err.status = res.status;
+                throw err;
             }
-
-            const resData = await res.json();
-            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-            return JSON.parse(text);
         }
 
         async function generateSmartSimulatedData(mealType, notes, imageBase64) {
