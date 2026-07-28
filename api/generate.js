@@ -1,121 +1,143 @@
+// api/generate.js
+// Vercel Serverless Function for Gemini API Integration
+
 export default async function handler(req, res) {
-    // Allow POST method only
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+  // CORS 및 Preflight 요청 처리
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
+
+  // 1. API 키 확인 (환경 변수)
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ 
+      error: 'Vercel 환경 변수(GEMINI_API_KEY)가 설정되지 않았습니다. Vercel Dashboard -> Settings -> Environment Variables에서 키를 추가해주세요.' 
+    });
+  }
+
+  try {
+    const { image, mimeType = 'image/jpeg', mealType = '급식', note = '' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({ error: '이미지 데이터가 전달되지 않았습니다.' });
     }
 
-    try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            return res.status(500).json({ 
-                error: 'GEMINI_API_KEY 환경 변수가 설정되지 않았습니다. Vercel Dashboard -> Environment Variables에 GEMINI_API_KEY를 추가해주세요.' 
-            });
-        }
+    // Base64 Prefix 제거 (e.g., "data:image/jpeg;base64,...")
+    const base64Data = image.includes(',') ? image.split(',')[1] : image;
 
-        const { image, mimeType, notes, mealType } = req.body;
+    // 2. Gemini 프롬프트 구성
+    const systemPrompt = `
+당신은 대한민국 최고 수준의 학교/기업 급식 및 영양 분석 전문가입니다.
+제공된 음식/급식 사진을 정밀 분석하여 다음 가이드라인에 따라 정확한 식단 및 영양 정보를 추출하세요.
 
-        if (!image) {
-            return res.status(400).json({ error: '분석할 이미지 데이터가 없습니다.' });
-        }
+[분석 지침]
+1. 식판 또는 접시에 담긴 각 음식을 식별하세요.
+2. 각 음식의 estimatedWeightGram(그램 수)과 estimatedCalories(칼로리)를 추정하세요.
+3. 총 칼로리(totalCalories), 탄수화물(carbsGrams), 단백질(proteinGrams), 지방(fatGrams)을 계산하세요.
+4. 나트륨(sodiumRating: '주의'|'보통'|'양호')과 당류(sugarRating: '주의'|'보통'|'양호') 위험도를 평가하세요.
+5. 영양사 관점의 짧고 유익한 조언(dietitianAdvice)을 한국어로 2-3문장 작성하세요.
 
-        const systemPrompt = `당신은 대한민국 임상 영양사이자 급식 분석 AI 전문가입니다.
-제공된 급식 또는 음식 사진을 정밀 분석하여 영양성분 및 칼로리 정보를 JSON으로 추출해야 합니다.
-반드시 다른 설명 없이 오직 유효한 JSON 객체만 반환하세요.
+식사 종류: ${mealType}
+사용자 추가 메모: ${note}
 
-JSON 구조 요구사항:
-{
-  "mealName": "식단 요약 (예: 차조밥과 닭갈비 급식)",
-  "totalCalories": 680,
-  "caloriesTarget": 700,
-  "nutrients": {
-    "carbs": { "amount": 88, "unit": "g", "percent": 55 },
-    "protein": { "amount": 32, "unit": "g", "percent": 25 },
-    "fat": { "amount": 16, "unit": "g", "percent": 20 },
-    "sodium": { "amount": 850, "unit": "mg", "status": "warning" },
-    "sugar": { "amount": 12, "unit": "g", "status": "good" }
-  },
-  "score": 88,
-  "summary": "단백질 비율이 높고 영양 구성이 우수한 급식입니다. 다만 국물의 나트륨 함량이 높습니다.",
-  "items": [
-    {
-      "name": "차조밥",
-      "portion": "1공기 (약 200g)",
-      "calories": 310,
-      "carbs": 68,
-      "protein": 6,
-      "fat": 1.5,
-      "category": "주식"
-    },
-    {
-      "name": "춘천닭갈비",
-      "portion": "1접시 (약 150g)",
-      "calories": 240,
-      "carbs": 10,
-      "protein": 22,
-      "fat": 12,
-      "category": "주요리"
-    }
-  ],
-  "advice": [
-    "국물의 건더기 위주로 드시면 나트륨 섭취를 30% 이상 줄일 수 있습니다.",
-    "식후 우유나 방울토마토 간식을 더하면 완벽한 균형이 완성됩니다."
-  ],
-  "dietaryTags": ["고단백", "적정칼로리", "나트륨주의"]
-}`;
+반드시 지정된 JSON 포맷으로만 응답해야 합니다.
+`;
 
-        const userPrompt = `이 ${mealType || '급식'} 사진을 분석해주세요. ${notes ? '추가 특이사항 메모: ' + notes : ''}`;
-
-        const payload = {
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: userPrompt },
-                        {
-                            inlineData: {
-                                mimeType: mimeType || 'image/jpeg',
-                                data: image
-                            }
-                        }
-                    ]
-                }
-            ],
-            systemInstruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.2
+    // Gemini API 요청 페이로드
+    const requestPayload = {
+      contents: [
+        {
+          parts: [
+            { text: systemPrompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data
+              }
             }
-        };
-
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `Gemini API 호출 실패 (상태 코드: ${response.status})`);
+          ]
         }
-
-        const data = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!responseText) {
-            throw new Error('AI 응답 데이터를 처리할 수 없습니다.');
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            totalCalories: { type: 'INTEGER' },
+            carbsGrams: { type: 'INTEGER' },
+            proteinGrams: { type: 'INTEGER' },
+            fatGrams: { type: 'INTEGER' },
+            sodiumRating: { type: 'STRING', enum: ['주의', '보통', '양호'] },
+            sugarRating: { type: 'STRING', enum: ['주의', '보통', '양호'] },
+            dietitianAdvice: { type: 'STRING' },
+            items: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  name: { type: 'STRING' },
+                  estimatedWeightGram: { type: 'INTEGER' },
+                  estimatedCalories: { type: 'INTEGER' }
+                },
+                required: ['name', 'estimatedWeightGram', 'estimatedCalories']
+              }
+            }
+          },
+          required: ['totalCalories', 'carbsGrams', 'proteinGrams', 'fatGrams', 'sodiumRating', 'sugarRating', 'dietitianAdvice', 'items']
         }
+      }
+    };
 
-        const parsedResult = JSON.parse(responseText);
-        return res.status(200).json(parsedResult);
+    // 3. Gemini REST API 호출 (gemini-2.5-flash 모델 사용)
+    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    } catch (error) {
-        console.error('API Serverless Error:', error);
-        return res.status(500).json({ 
-            error: error.message || '서버 내부 오류가 발생했습니다.' 
-        });
+    const apiResponse = await fetch(geminiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestPayload)
+    });
+
+    if (!apiResponse.ok) {
+      const errorText = await apiResponse.text();
+      console.error('Gemini API Error Response:', errorText);
+      return res.status(apiResponse.status).json({ 
+        error: `Gemini API 호출 오류가 발생했습니다 (${apiResponse.status}).`,
+        details: errorText
+      });
     }
+
+    const responseData = await apiResponse.json();
+
+    // 4. 응답 데이터 추출 및 파싱
+    const candidateText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!candidateText) {
+      return res.status(500).json({ error: 'Gemini API로부터 유효한 응답을 받지 못했습니다.' });
+    }
+
+    const parsedJson = JSON.parse(candidateText);
+    return res.status(200).json(parsedJson);
+
+  } catch (err) {
+    console.error('Serverless Function Exception:', err);
+    return res.status(500).json({ 
+      error: '서버 내부 분석 처리 중 에러가 발생했습니다.', 
+      details: err.message 
+    });
+  }
 }
